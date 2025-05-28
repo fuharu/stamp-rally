@@ -16,58 +16,63 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
 
 // Add this line to define googleProvider
 const googleProvider = new GoogleAuthProvider();
 
-// Initialize collections
-const rankingCollection = collection(db, 'ranking');
-const usersCollection = collection(db, 'users');
-
-// Modify getRanking function to include error handling
+// ランキング取得（REST API版）
 export const getRanking = async () => {
   try {
-    const q = query(rankingCollection, orderBy('points', 'desc'), limit(10));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const response = await fetch('http://localhost:3001/api/ranking');
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error('ランキングの取得に失敗:', error);
     return [];
   }
 };
 
-// Add this function to update the ranking for a user
+// ランキング更新（REST API版）
 export const updateRanking = async (userId, points, user) => {
   try {
-    const rankingDoc = doc(rankingCollection, userId);
-    await setDoc(rankingDoc, {
-      userId,
-      points,
-      displayName: user.displayName || '',
-      photoURL: user.photoURL || '',
-      email: user.email || '',
-      stamps: user.stamps || [],
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+    await fetch('http://localhost:3001/api/ranking', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId,
+        points,
+        displayName: user.displayName || '',
+        photoURL: user.photoURL || '',
+        email: user.email || '',
+        stamps: user.stamps || []
+      })
+    });
   } catch (error) {
     console.error('ランキングの更新に失敗:', error);
   }
 };
 
-// ユーザーデータを更新する関数を追加
+// ユーザーデータ更新（REST API版）
 export const updateUserData = async (userId, data) => {
   try {
-    const userDoc = doc(usersCollection, userId);
-    await setDoc(userDoc, {
-      ...data,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+    await fetch('http://localhost:3001/api/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId,
+        stamps: data.stamps || [],
+        points: data.points || 0,
+        totalDistance: data.totalDistance || 0,
+        steps: data.steps || 0
+      })
+    });
   } catch (error) {
     console.error('ユーザーデータの更新に失敗:', error);
   }
 };
-export { auth, db, googleProvider };
+
+export { auth, googleProvider };

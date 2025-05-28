@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { auth, googleProvider } from '../firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
+import { auth, googleProvider, updateUserData } from '../firebase';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -13,10 +13,18 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      let userCredential;
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
       } else {
-        await createUserWithEmailAndPassword(auth, email, password);
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        // 新規登録時にPostgreSQLへ初期データ登録
+        await updateUserData(userCredential.user.uid, {
+          stamps: [],
+          points: 0,
+          totalDistance: 0,
+          steps: 0
+        });
       }
       navigate('/');
     } catch (error) {
@@ -26,7 +34,14 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      // Googleログイン時にもPostgreSQLへ初期データ登録
+      await updateUserData(result.user.uid, {
+        stamps: [],
+        points: 0,
+        totalDistance: 0,
+        steps: 0
+      });
       navigate('/');
     } catch (error) {
       console.error('Googleログインエラー:', error);

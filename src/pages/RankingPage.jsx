@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function RankingPage({ ranking, user }) {
+export default function RankingPage({ ranking = [], user }) {
   const [selectedUser, setSelectedUser] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
 
@@ -14,6 +14,26 @@ export default function RankingPage({ ranking, user }) {
     setSelectedUser(null);
     setShowDetails(false);
   };
+
+  // rankingが空の場合はメッセージを表示
+  if (!ranking || ranking.length === 0) {
+    return (
+      <div style={{ maxWidth: 600, margin: '0 auto', padding: 16 }}>
+        <h2 style={{ textAlign: 'center', color: '#4caf50', marginBottom: 12 }}>
+          🏆 ランキング
+        </h2>
+        <div style={{ 
+          background: 'white', 
+          borderRadius: 12, 
+          padding: 20, 
+          boxShadow: '0 2px 12px rgba(0,0,0,0.1)',
+          textAlign: 'center'
+        }}>
+          まだランキングデータがありません
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto', padding: 16 }}>
@@ -39,12 +59,12 @@ export default function RankingPage({ ranking, user }) {
                   />
                 ) : (
                   <div style={{ width: '100%', height: '100%', background: '#4caf50', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-                    {user.displayName[0]}
+                    {user.displayName?.[0] || '?'}
                   </div>
                 )}
               </div>
               <div>
-                <div style={{ fontSize: '1.2em', fontWeight: 'bold' }}>{user.displayName}</div>
+                <div style={{ fontSize: '1.2em', fontWeight: 'bold' }}>{user.displayName || 'ゲスト'}</div>
                 <div style={{ color: '#666', fontSize: '0.9em' }}>現在のポイント: {user.points || 0}</div>
                 <div style={{ color: '#666', fontSize: '0.9em' }}>取得したスタンプ: {user.stamps?.length || 0} 個</div>
               </div>
@@ -82,13 +102,13 @@ export default function RankingPage({ ranking, user }) {
                   />
                 ) : (
                   <div style={{ width: '100%', height: '100%', background: '#4caf50', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-                    {otherUser.displayName[0]}
+                    {otherUser.displayName?.[0] || '?'}
                   </div>
                 )}
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 'bold', color: isCurrentUser ? '#4caf50' : 'inherit' }}>{otherUser.displayName}</div>
-                <div style={{ fontSize: 14, color: '#666' }}>{otherUser.points} ポイント</div>
+                <div style={{ fontWeight: 'bold', color: isCurrentUser ? '#4caf50' : 'inherit' }}>{otherUser.displayName || 'ゲスト'}</div>
+                <div style={{ fontSize: 14, color: '#666' }}>{otherUser.points || 0} ポイント</div>
               </div>
             </div>
           );
@@ -117,7 +137,7 @@ export default function RankingPage({ ranking, user }) {
             position: 'relative'
           }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ textAlign: 'center', marginBottom: 20 }}>
-              {selectedUser.displayName} の詳細情報
+              {selectedUser.displayName || 'ゲスト'} の詳細情報
             </h3>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
               <div style={{ width: 80, height: 80, borderRadius: '50%', overflow: 'hidden', margin: '0 20px' }}>
@@ -130,21 +150,21 @@ export default function RankingPage({ ranking, user }) {
                   />
                 ) : (
                   <div style={{ width: '100%', height: '100%', background: '#4caf50', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 24 }}>
-                    {selectedUser.displayName[0]}
+                    {selectedUser.displayName?.[0] || '?'}
                   </div>
                 )}
               </div>
               <div>
                 <div style={{ fontSize: '1.2em', fontWeight: 'bold', marginBottom: 8 }}>
-                  {selectedUser.displayName}
+                  {selectedUser.displayName || 'ゲスト'}
                 </div>
                 <div style={{ color: '#666', marginBottom: 16 }}>
-                  {selectedUser.email}
+                  {selectedUser.email || 'メールアドレス未設定'}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ color: '#4caf50' }}>🏆</span>
-                    <span style={{ fontWeight: 'bold' }}>{selectedUser.points} ポイント</span>
+                    <span style={{ fontWeight: 'bold' }}>{selectedUser.points || 0} ポイント</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ color: '#f44336' }}>📍</span>
@@ -156,15 +176,15 @@ export default function RankingPage({ ranking, user }) {
             <div style={{ borderTop: '1px solid #e0e0e0', paddingTop: 20 }}>
               <h4 style={{ color: '#4caf50', marginBottom: 12 }}>取得したスタンプ</h4>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                {selectedUser.stamps?.map((stampId, index) => (
-                  <div key={index} style={{
+                {selectedUser.stamps?.map((stamp, index) => (
+                  <div key={`${selectedUser.userId}-stamp-${index}`} style={{
                     background: '#e8f5e9',
                     padding: 12,
                     borderRadius: 8,
                     flex: '0 1 45%'
                   }}>
-                    <div style={{ fontSize: '1.2em', fontWeight: 'bold' }}>スタンプ {stampId}</div>
-                    <div style={{ color: '#666', fontSize: '0.9em' }}>取得日時: {new Date(selectedUser.stamps[stampId].timestamp).toLocaleString()}</div>
+                    <div style={{ fontSize: '1.2em', fontWeight: 'bold' }}>スタンプ {stamp.id}</div>
+                    <div style={{ color: '#666', fontSize: '0.9em' }}>取得日時: {new Date(stamp.timestamp).toLocaleString()}</div>
                   </div>
                 ))}
               </div>

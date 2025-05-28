@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { useJsApiLoader } from '@react-google-maps/api';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, getRanking, updateUserData, updateRanking } from './firebase';
+import { auth, getRanking, updateUserData, updateRanking } from './firebase'; 
 import StampRallyPage from './pages/StampRallyPage';
 import ActivityPage from './pages/ActivityPage';
 import LoginPage from './pages/LoginPage';
@@ -32,6 +32,8 @@ function AppRouter() {
   const [geoError, setGeoError] = useState(null);
   const [page, setPage] = useState('stamp');
   const [ranking, setRanking] = useState([]);
+  const [goalId, setGoalId] = useState(null);
+  const [currentUserProgress, setCurrentUserProgress] = useState(null);
 
   const navigate = useNavigate();
 
@@ -40,7 +42,7 @@ function AppRouter() {
   });
 
   const handleMarkerClick = (id) => {
-    setSelected(id);
+    setSelected(String(id));
   };
 
   useEffect(() => {
@@ -55,41 +57,174 @@ function AppRouter() {
     const fetchRanking = async () => {
       try {
         if (user) {
-          const data = await getRanking();
-          setRanking(data);
+          const response = await fetch('http://localhost:3001/api/ranking');
+          const data = await response.json();
+          const formattedRanking = data.map(user => ({
+            userId: user.userid,
+            displayName: user.displayname || user.email?.split('@')[0] || 'ゲスト',
+            email: user.email,
+            photoURL: user.photourl,
+            points: user.points || 0,
+            stamps: user.stamps || [],
+            totalDistance: user.totaldistance || 0,
+            steps: user.steps || 0,
+            updatedAt: user.updatedat
+          }));
+          setRanking(formattedRanking);
+          const currentUserData = formattedRanking.find(rankUser => rankUser.userId === user.uid);
+          if (currentUserData) {
+            setCurrentUserProgress(currentUserData);
+            setGotStamps(currentUserData.stamps || []);
+          }
         }
       } catch (error) {
         console.error('ランキングの取得に失敗:', error);
         setRanking([]);
+        setCurrentUserProgress(null);
       }
     };
     fetchRanking();
   }, [user]);
 
-  const handleGetStamp = async (id) => {
-    if (!gotStamps.includes(id)) {
-      const stampPoint = STAMP_POINTS.find(point => point.id === id);
-      if (stampPoint && currentPos) {
-        const distance = getDistance(currentPos, stampPoint.position);
-        if (distance > 30) {
-          alert('スタンプ地点から30m以内に近づいてください');
-          return;
-        }
-      }
-      
-      const updated = [...gotStamps, id];
-      setGotStamps(updated);
-      localStorage.setItem('gotStamps', JSON.stringify(updated));
-
-      const points = updated.length * 10;
-      await updateUserData(user.uid, {
-        stamps: updated,
-        points,
-        totalDistance,
-        steps
-      });
-      await updateRanking(user.uid, points, user);
+  // 現在地取得
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setGeoError('Geolocation APIがサポートされていません');
+      return;
     }
+
+    console.log('位置情報の取得を開始します');
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (pos && pos.coords) {
+          console.log('位置情報を取得:', {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy
+          });
+          
+          setCurrentPos({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude
+          });
+          setGeoError(null); // エラーをクリア
+        } else {
+          console.error('位置情報の形式が不正です:', pos);
+          setGeoError('位置情報の形式が不正です');
+        }
+      },
+      (err) => {
+        console.error('位置情報の取得エラー:', err);
+        let msg = '位置情報の取得に失敗しました';
+        if (err.code === 1) msg += '（許可されていません）';
+        if (err.code === 2) msg += '（位置情報が利用できません）';
+        if (err.code === 3) msg += '（タイムアウト）';
+        setGeoError(msg);
+        setCurrentPos(null); // エラー時は現在地をクリア
+      },
+      { 
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+
+    return () => {
+      console.log('位置情報の監視を停止');
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
+
+  const handleGetStamp = async (id) => {
+    console.log('handleGetStamp called with id:', id);
+    console.log('Current gotStamps:', gotStamps);
+    
+    if (!gotStamps.includes(id)) {
+      try {
+        // 新しい配列を作成
+        const updated = [...gotStamps, id];
+        console.log('Updated gotStamps:', updated);
+        
+        // 状態を更新
+        setGotStamps(updated);
+        
+        // ローカルストレージに保存
+        localStorage.setItem('gotStamps', JSON.stringify(updated));
+        console.log('Saved to localStorage:', updated);
+
+        // ユーザーデータの更新
+        if (user) {
+          const points = updated.length * 10;
+          await updateUserData(user.uid, {
+            stamps: updated,
+            points,
+            totalDistance,
+            steps
+          });
+          await updateRanking(user.uid, points, user);
+          console.log('User data updated successfully');
+
+          setCurrentUserProgress(prev => ({
+            ...prev,
+            stamps: updated,
+            points: points,
+          }));
+        }
+      } catch (error) {
+        console.error('スタンプ取得処理でエラーが発生:', error);
+      }
+    } else {
+      console.log('Stamp already exists:', id);
+    }
+    
+    // 選択状態をリセット
+    setSelected(null);
+  };
+
+  const handleRemoveStamp = async (id) => {
+    console.log('handleRemoveStamp called with id:', id);
+    console.log('Current gotStamps:', gotStamps);
+    
+    if (gotStamps.includes(id)) {
+      try {
+        // スタンプを削除した新しい配列を作成
+        const updated = gotStamps.filter(stampId => stampId !== id);
+        console.log('Updated gotStamps:', updated);
+        
+        // 状態を更新
+        setGotStamps(updated);
+        
+        // ローカルストレージに保存
+        localStorage.setItem('gotStamps', JSON.stringify(updated));
+        console.log('Saved to localStorage:', updated);
+
+        // ユーザーデータの更新
+        if (user) {
+          const points = updated.length * 10;
+          await updateUserData(user.uid, {
+            stamps: updated,
+            points,
+            totalDistance,
+            steps
+          });
+          await updateRanking(user.uid, points, user);
+          console.log('User data updated successfully');
+
+          setCurrentUserProgress(prev => ({
+            ...prev,
+            stamps: updated,
+            points: points,
+          }));
+        }
+      } catch (error) {
+        console.error('スタンプ解除処理でエラーが発生:', error);
+      }
+    } else {
+      console.log('Stamp does not exist:', id);
+    }
+    
+    // 選択状態をリセット
     setSelected(null);
   };
 
@@ -111,6 +246,15 @@ function AppRouter() {
       console.error('共有に失敗しました:', error);
       alert('共有に失敗しました。手動でコピーしてください。');
     }
+  };
+
+  const handleSetGoal = (id) => {
+    setGoalId(id);
+    setSelected(id);
+  };
+
+  const handleClearGoal = () => {
+    setGoalId(null);
   };
 
   if (loading) return null; 
@@ -249,6 +393,27 @@ function AppRouter() {
                   >
                     ログアウト
                   </button>
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem('gotStamps');
+                      setGotStamps([]);
+                      setShowProfile(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      background: '#f44336',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      marginTop: '8px'
+                    }}
+                  >
+                    スタンプをリセット（デバッグ用）
+                  </button>
                 </div>
               )}
             </div>
@@ -267,12 +432,52 @@ function AppRouter() {
                 handleMarkerClick={handleMarkerClick}
                 selected={selected}
                 handleGetStamp={handleGetStamp}
+                handleRemoveStamp={handleRemoveStamp}
                 geoError={geoError}
+                goalId={goalId}
+                handleSetGoal={handleSetGoal}
+                handleClearGoal={handleClearGoal}
               />
             } />
-            <Route path="/ranking" element={<RankingPage ranking={ranking} user={user} />} />
+            <Route path="/ranking" element={<RankingPage ranking={ranking} user={currentUserProgress} />} />
             <Route path="/activity" element={<ActivityPage totalDistance={totalDistance} steps={steps} elapsed={elapsed} />} />
           </Routes>
+
+          {selected && (() => {
+            const spot = STAMP_POINTS.find(p => String(p.id) === String(selected));
+            if (!spot) return null;
+            return (
+              <div
+                style={{
+                  position: 'fixed',
+                  right: 60,
+                  bottom: 60,
+                  width: 320,
+                  zIndex: 1000,
+                  background: 'white',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  textAlign: 'center',
+                  maxWidth: '90vw',
+                  maxHeight: 'calc(100vh - 120px)',
+                  overflowY: 'auto',
+                  boxSizing: 'border-box',
+                  ...(window.innerWidth < 700
+                    ? {
+                        left: '50%',
+                        right: 'auto',
+                        top: 'auto',
+                        bottom: 20,
+                        transform: 'translateX(-50%)',
+                      }
+                    : {}),
+                }}
+              >
+                {/* ...中身はそのまま... */}
+              </div>
+            );
+          })()}
         </>
       ) : (
         <LoginPage />
@@ -290,21 +495,24 @@ export function AppRoutes({ isLoaded, center, currentPos, STAMP_POINTS, gotStamp
           isLoaded={isLoaded}
           center={center}
           currentPos={currentPos}
-          STAMP_POINTS={STAMP_POINTS}
+          touristSpots={STAMP_POINTS}
           gotStamps={gotStamps}
           handleMarkerClick={handleMarkerClick}
           selected={selected}
           handleGetStamp={handleGetStamp}
+          handleRemoveStamp={handleRemoveStamp}
           geoError={geoError}
-          getDistance={getDistance}  // 追加
+          goalId={null}
+          handleSetGoal={() => {}}
+          handleClearGoal={() => {}}
         />
       } />
-      <Route path="/ranking" element={
-        <RankingPage ranking={ranking} user={user} />
-      } />
-      <Route path="/activity" element={
-        <ActivityPage totalDistance={totalDistance} steps={steps} elapsed={elapsed} />
-      } />
+      <Route path="/activity" element={<ActivityPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route 
+        path="/ranking"
+        element={<RankingPage ranking={ranking} user={user} />}
+      />
     </Routes>
   );
 }
