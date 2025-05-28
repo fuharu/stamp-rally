@@ -24,6 +24,7 @@ export default function StampRallyPage({
   };
   const [route, setRoute] = useState(null);
   const [nearest, setNearest] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // デバッグ用: スタンプデータ
   const debugSpots = [
@@ -37,7 +38,7 @@ export default function StampRallyPage({
       }
     },
     {
-      id: 3,
+      id: 2,
       name: '新宿駅',
       description: '新宿駅のスタンプです。',
       position: {
@@ -46,7 +47,7 @@ export default function StampRallyPage({
       }
     },
     {
-      id: 4,
+      id: 3,
       name: '浅草寺',
       description: '浅草寺のスタンプです。',
       position: {
@@ -107,11 +108,26 @@ export default function StampRallyPage({
       .filter(spot => spot.normalizedPos !== null);
   }, []);
 
-  // goalIdがセットされていれば、そのIDのみ表示
+  // 検索クエリに基づいてスポットをフィルタリング
   const filteredSpots = React.useMemo(() => {
-    if (!goalId) return normalizedSpots;
-    return normalizedSpots.filter(spot => String(spot.id) === String(goalId));
-  }, [goalId, normalizedSpots]);
+    let spots = normalizedSpots;
+    
+    // 検索クエリでフィルタリング
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      spots = spots.filter(spot => 
+        spot.name.toLowerCase().includes(query) ||
+        spot.description.toLowerCase().includes(query)
+      );
+    }
+    
+    // goalIdがセットされている場合は、そのIDのみ表示
+    if (goalId) {
+      spots = spots.filter(spot => String(spot.id) === String(goalId));
+    }
+    
+    return spots;
+  }, [goalId, normalizedSpots, searchQuery]);
 
   // デバッグ用: ピン描画状態をコンソール出力
   console.log('touristSpots', touristSpots);
@@ -227,6 +243,47 @@ export default function StampRallyPage({
       <h2 style={{ textAlign: 'center', color: '#1976d2', marginBottom: 24, letterSpacing: 2, fontWeight: 700, fontSize: 28 }}>
         <span style={{ verticalAlign: 'middle', marginRight: 8 }}>📍</span>スタンプラリー地図アプリ
       </h2>
+
+      {/* 検索入力フィールド */}
+      <div style={{ marginBottom: '16px' }}>
+        <input
+          type="text"
+          placeholder="スタンプ名で検索..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '12px',
+            borderRadius: '8px',
+            border: '1px solid #e0e0e0',
+            fontSize: '16px',
+            outline: 'none',
+            transition: 'border-color 0.2s',
+            ':focus': {
+              borderColor: '#1976d2'
+            }
+          }}
+        />
+        {/* 検索結果の件数表示 */}
+        {searchQuery && (
+          <div style={{ 
+            marginTop: '8px', 
+            fontSize: '14px', 
+            color: '#666',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span>
+              検索結果: <strong style={{ color: '#1976d2' }}>{filteredSpots.length}</strong> 件
+            </span>
+            <span>
+              全スタンプ: <strong style={{ color: '#1976d2' }}>{normalizedSpots.length}</strong> 件
+            </span>
+          </div>
+        )}
+      </div>
+
       {isLoaded ? (
         <GoogleMap
           mapContainerStyle={containerStyle}
@@ -260,7 +317,7 @@ export default function StampRallyPage({
             />
           )}
           {/* スタンプポイントマーカー */}
-          {normalizedSpots.map((spot, idx) => {
+          {filteredSpots.map((spot, idx) => {
             const isStampGot = gotStamps.includes(String(spot.id));
             console.log(`Spot ${spot.id} stamp status:`, isStampGot);
             
