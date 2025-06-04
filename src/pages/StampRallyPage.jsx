@@ -26,37 +26,6 @@ export default function StampRallyPage({
   const [nearest, setNearest] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // デバッグ用: スタンプデータ
-  const debugSpots = [
-    {
-      id: 1,
-      name: '茨城大学水戸キャンパス',
-      description: '茨城大学のメインキャンパスです。正門前でスタンプを取得できます。',
-      position: {
-        lat: 36.3725,
-        lng: 140.4747
-      }
-    },
-    {
-      id: 2,
-      name: '新宿駅',
-      description: '新宿駅のスタンプです。',
-      position: {
-        lat: 35.6895,
-        lng: 139.7003
-      }
-    },
-    {
-      id: 3,
-      name: '浅草寺',
-      description: '浅草寺のスタンプです。',
-      position: {
-        lat: 35.7147,
-        lng: 139.7968
-      }
-    }
-  ];
-
   // 2点間の距離を計算する関数（メートル単位）
   const getDistance = (pos1, pos2) => {
     if (!pos1 || !pos2 || !pos1.lat || !pos1.lng || !pos2.lat || !pos2.lng) return Infinity;
@@ -87,17 +56,15 @@ export default function StampRallyPage({
   // 座標を正規化する関数
   const normalizeCoordinate = (coord) => {
     if (!coord) return null;
-    // positionオブジェクトから座標を取得
-    const lat = Number(coord.position?.lat ?? coord.lat);
-    const lng = Number(coord.position?.lng ?? coord.lng);
+    const lat = Number(coord?.lat);
+    const lng = Number(coord?.lng);
     if (!isValidCoordinate(lat, lng)) return null;
     return { lat, lng };
   };
 
   // touristSpotsを数値化
   const normalizedSpots = React.useMemo(() => {
-    // デバッグ用データを使用
-    const spots = debugSpots;
+    const spots = touristSpots;
     if (!Array.isArray(spots)) return [];
     
     return spots
@@ -106,7 +73,7 @@ export default function StampRallyPage({
         normalizedPos: normalizeCoordinate(spot)
       }))
       .filter(spot => spot.normalizedPos !== null);
-  }, []);
+  }, [touristSpots]);
 
   // 検索クエリに基づいてスポットをフィルタリング
   const filteredSpots = React.useMemo(() => {
@@ -137,12 +104,10 @@ export default function StampRallyPage({
 
   // デバッグ: ピン描画タイミングの計測
   React.useEffect(() => {
-    if (isLoaded) {
-      console.log('[DEBUG] isLoaded true:', new Date().toLocaleTimeString());
-      // デバッグ用データをコンソールに出力
-      console.log('[DEBUG] 茨城大学スタンプ:', debugSpots);
+    if (isLoaded && touristSpots) {
+      console.log('[DEBUG] isLoaded true, touristSpots:', new Date().toLocaleTimeString(), touristSpots);
     }
-  }, [isLoaded]);
+  }, [isLoaded, touristSpots]);
 
   React.useEffect(() => {
     if (isLoaded && touristSpots && gotStamps !== undefined) {
@@ -152,7 +117,7 @@ export default function StampRallyPage({
 
   // ルート検索（Google Directions API）
   React.useEffect(() => {
-    if (!isLoaded || !currentPos || !window.google || !debugSpots?.length) return;
+    if (!isLoaded || !currentPos || !window.google || !touristSpots?.length) return;
     
     const normalizedCurrentPos = normalizeCoordinate(currentPos);
     if (!normalizedCurrentPos) {
@@ -161,7 +126,7 @@ export default function StampRallyPage({
     }
 
     if (selected) {
-      const goalPoint = debugSpots.find(p => String(p.id) === String(selected));
+      const goalPoint = touristSpots.find(p => String(p.id) === String(selected));
       if (!goalPoint) return;
       
       const normalizedGoal = normalizeCoordinate(goalPoint);
@@ -185,7 +150,7 @@ export default function StampRallyPage({
       return;
     }
 
-    const targets = debugSpots
+    const targets = touristSpots
       .filter(p => !gotStamps.includes(String(p.id)))
       .map(p => ({
         ...p,
@@ -386,7 +351,7 @@ export default function StampRallyPage({
 
       {/* スタンプ詳細表示 */}
       {selected && (() => {
-        const spot = debugSpots.find(p => String(p.id) === String(selected));
+        const spot = touristSpots.find(p => String(p.id) === String(selected));
         if (!spot) return null;
         
         const normalizedSpot = normalizeCoordinate(spot);
@@ -565,28 +530,3 @@ export default function StampRallyPage({
     </div>
   );
 }
-
-
-// スタンプラリー地図アプリの実装についてのコメント
-{/*
-{
-  // 観光地（tourist_spots）コレクションを参照してスタンプを地図上に配置したい場合、Reactアプリ側でFirestoreからtourist_spotsコレクションを取得し、そのデータをマーカーとしてGoogleマップ上に描画する必要があります。
-  
-  // この実装イメージです。  
-  // Firestoreから観光地データを取得し、`STAMP_POINTS`の代わりにそのデータを使ってマーカーを配置します。
-  
-  // 例：`src/pages/StampRallyPage.jsx` でFirestoreから観光地データを取得し、マーカーとして表示する場合
-  {touristSpots.map((spot) => (
-    <Marker
-      key={spot.id}
-      position={{ lat: spot.lat, lng: spot.lng }}
-      label={props.gotStamps.includes(spot.id) ? '✅' : '📍'}
-      onClick={() => props.handleMarkerClick(spot.id)}
-      icon={props.gotStamps.includes(spot.id)
-        ? { url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png' }
-        : { url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png' }
-      }
-    />
-  ))}
-}
-*/}

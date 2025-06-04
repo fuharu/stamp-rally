@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleMap, Marker, useJsApiLoader, MarkerClusterer } from '@react-google-maps/api';
 import { getFirestore, collection, query, where, getDocs } from "firebase/firestore";
 import _ from 'lodash';
-
+import { stampPointsCollection } from './firebase';
 
 
 const containerStyle = {
@@ -10,28 +10,6 @@ const containerStyle = {
   height: '60vh',
   marginBottom: '1rem',
 };
-
-// 任意のスタンプポイント
-export const STAMP_POINTS = [
-  {
-    id: 1,
-    name: 'スタンプ1',
-    position: { lat: 35.681236, lng: 139.767125 }, // 東京駅
-    description: '東京駅のスタンプです。',
-  },
-  {
-    id: 2,
-    name: 'スタンプ2',
-    position: { lat: 35.689487, lng: 139.691711 }, // 新宿駅
-    description: '新宿駅のスタンプです。',
-  },
-  {
-    id: 3,
-    name: 'スタンプ3',
-    position: { lat: 35.710063, lng: 139.8107 }, // 浅草寺
-    description: '浅草寺のスタンプです。',
-  },
-];
 
 const center = { lat: 35.6895, lng: 139.6917 }; // 東京中心
 
@@ -84,11 +62,6 @@ export default function App() {
     const bounds = map.getBounds();
     //fetchStampPointsInBounds(bounds);
   }, 300), []);
-
-  // スタンプポイントを初期化
-useEffect(() => {
-  setStampPoints([]); // キャッシュをクリア
-}, []);
 
   // 距離計算関数
   function getDistance(lat1, lng1, lat2, lng2) {
@@ -178,15 +151,15 @@ useEffect(() => {
     return dist < 50;
   }
   // スタンプ取得
-useEffect(() => {
-  if (isLoaded && currentPos) {
-    const map = new google.maps.Map(document.getElementById('map'), {
-      center: currentPos,
-      zoom: 12,
-    });
+  useEffect(() => {
+    if (isLoaded && currentPos && stampPoints.length > 0) {
+      const map = new google.maps.Map(document.getElementById('map'), {
+        center: currentPos,
+        zoom: 12,
+      });
 
     // マーカーをGoogle Maps APIで直接描画
-    stampPoints.forEach(point => { // STAMP_POINTSからstampPointsに変更
+    stampPoints.forEach(point => {
       const marker = new google.maps.Marker({
         position: point.position,
         map: map,
@@ -201,22 +174,15 @@ useEffect(() => {
   }
 }, [isLoaded, currentPos, stampPoints]); // 依存関係にstampPointsを追加
 
-// 取得済みスタンプリストの表示を変更
-{gotStamps.map((id) => {
-  const point = stampPoints.find((p) => p.id === id); // STAMP_POINTSからstampPointsに変更
-  return <li key={id} style={{ margin: '6px 0', fontWeight: 500, color: '#388e3c' }}>{point.name}</li>;
-})}
-  useEffect(() => {
-    if (!currentPos) return;
-    STAMP_POINTS.forEach((point) => {
-      if (!gotStamps.includes(point.id)) {
-        const dist = getDistance(currentPos.lat, currentPos.lng, point.position.lat, point.position.lng);
-        if (dist < 50) { // 50m以内で自動取得
-          setGotStamps((prev) => [...prev, point.id]);
-        }
-      }
-    });
-  }, [currentPos, gotStamps]);
+const handleGetStamp = async (id) => {
+    if (!gotStamps.includes(id)) {
+      setGotStamps([...gotStamps, id]);
+      // Firestoreでスタンプ回数をインクリメント (もしあれば)
+      // const ref = doc(db, "spot_stats", String(id));
+      // await setDoc(ref, { gotCount: increment(1) }, { merge: true });
+    }
+    setSelected(null);
+  };
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto', padding: 16, background: '#fff', borderRadius: 16, boxShadow: '0 2px 16px rgba(0,0,0,0.08)' }}>
@@ -270,8 +236,8 @@ useEffect(() => {
       {/* マーカー詳細・スタンプGETボタン */}
       {selected && (
         <div style={{ background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 12, padding: 16, margin: '1rem 0', boxShadow: '0 2px 8px rgba(25, 118, 210, 0.08)' }}>
-          <strong style={{ color: '#1976d2', fontSize: 18 }}>{STAMP_POINTS.find((p) => p.id === selected).name}</strong>
-          <div style={{ margin: '8px 0' }}>{STAMP_POINTS.find((p) => p.id === selected).description}</div>
+          <strong style={{ color: '#1976d2', fontSize: 18 }}>{stampPoints.find((p) => p.id === selected).name}</strong>
+          <div style={{ margin: '8px 0' }}>{stampPoints.find((p) => p.id === selected).description}</div>
           <button
             style={{ marginTop: 8, padding: '8px 20px', background: gotStamps.includes(selected) ? '#bdbdbd' : '#1976d2', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 16, cursor: gotStamps.includes(selected) ? 'not-allowed' : 'pointer', transition: 'background 0.2s' }}
             onClick={() => handleGetStamp(selected)}
@@ -285,10 +251,10 @@ useEffect(() => {
       {/* 進捗バー */}
       <div style={{ margin: '24px 0 8px 0' }}>
         <div style={{ height: 16, background: '#e0e0e0', borderRadius: 8, overflow: 'hidden', position: 'relative' }}>
-          <div style={{ width: `${(gotStamps.length / STAMP_POINTS.length) * 100}%`, height: '100%', background: '#1976d2', transition: 'width 0.4s', borderRadius: 8 }}></div>
+          <div style={{ width: `${(gotStamps.length / stampPoints.length) * 100}%`, height: '100%', background: '#1976d2', transition: 'width 0.4s', borderRadius: 8 }}></div>
         </div>
         <div style={{ textAlign: 'right', fontSize: 13, color: '#1976d2', marginTop: 4 }}>
-          {gotStamps.length} / {STAMP_POINTS.length} スタンプ取得
+          {gotStamps.length} / {stampPoints.length} スタンプ取得
         </div>
       </div>
 
@@ -309,7 +275,7 @@ useEffect(() => {
         <ul style={{ margin: 0, paddingLeft: 20, listStyle: 'none' }}>
           {gotStamps.length === 0 && <li style={{ color: '#757575' }}>まだありません</li>}
           {gotStamps.map((id) => {
-            const point = STAMP_POINTS.find((p) => p.id === id);
+            const point = stampPoints.find((p) => p.id === id);
             return <li key={id} style={{ margin: '6px 0', fontWeight: 500, color: '#388e3c' }}>{point.name}</li>;
           })}
         </ul>
@@ -329,16 +295,3 @@ const handleGetStamp = async (id) => {
   }
   setSelected(null);
 };
-
-
-const touristSpots = async () => {
-  const col = collection(db, 'tourist_spots');
-  const q = query(col, where('tags.tourism', '==', 'museum')); // 'museum'を表示する場合
-  const snapshot = await getDocs(q);
-  const spots = snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
-  setTouristSpots(spots);
-};
-

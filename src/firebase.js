@@ -16,9 +16,13 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
 
 // Add this line to define googleProvider
 const googleProvider = new GoogleAuthProvider();
+
+// Firestore のコレクションへの参照をエクスポート
+export const stampPointsCollection = collection(db, 'stampPoints');
 
 // ランキング取得（REST API版）
 export const getRanking = async () => {
