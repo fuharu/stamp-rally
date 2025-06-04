@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleMap, Marker, Polyline, DirectionsRenderer } from '@react-google-maps/api';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebase'; // Firebaseの設定ファイルをインポート
 
 export default function StampRallyPage({
   isLoaded,
@@ -25,6 +26,11 @@ export default function StampRallyPage({
   const [route, setRoute] = useState(null);
   const [nearest, setNearest] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [stepCount, setStepCount] = useState(0);
+  const [isCounting, setIsCounting] = useState(false);
+  const [lastPosition, setLastPosition] = useState(null);
+  const [totalDistance, setTotalDistance] = useState(0);
+  const [exerciseId, setExerciseId] = useState(null);
 
   // デバッグ用: スタンプデータ
   const debugSpots = [
@@ -238,11 +244,130 @@ export default function StampRallyPage({
     });
   }, [isLoaded, currentPos, gotStamps, selected]);
 
+  // 運動記録をFirestoreに保存
+  const saveExerciseRecord = async (steps, distance) => {
+    try {
+      const exerciseData = {
+        steps,
+        distance,
+        timestamp: serverTimestamp(),
+        type: 'stamp_rally',
+        location: currentPos ? {
+          lat: currentPos.lat,
+          lng: currentPos.lng
+        } : null
+      };
+
+      const docRef = await addDoc(collection(db, 'exercise_records'), exerciseData);
+      setExerciseId(docRef.id);
+      console.log('運動記録を保存しました:', docRef.id);
+    } catch (error) {
+      console.error('運動記録の保存に失敗しました:', error);
+    }
+  };
+
+  // 歩数計測の開始/停止
+  const toggleStepCounter = async () => {
+    if (isCounting) {
+      // 停止時に記録を保存
+      await saveExerciseRecord(stepCount, totalDistance);
+    } else {
+      // 開始時にリセット
+      setStepCount(0);
+      setTotalDistance(0);
+      setExerciseId(null);
+    }
+    setIsCounting(!isCounting);
+  };
+
+  // 位置情報の変更を監視
+  useEffect(() => {
+    if (!isCounting || !currentPos) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const newPosition = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+
+        if (lastPosition) {
+          const distance = getDistance(lastPosition, newPosition);
+          if (distance > 0.5) { // 0.5メートル以上移動した場合に歩数としてカウント
+            setStepCount(prev => prev + 1);
+            setTotalDistance(prev => prev + distance);
+          }
+        }
+        setLastPosition(newPosition);
+      },
+      (error) => {
+        console.error('位置情報の取得に失敗しました:', error);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 5000
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [isCounting, currentPos, lastPosition]);
+
   return (
     <div style={{ maxWidth: 600, margin: '0 auto', padding: 16, background: '#fff', borderRadius: 16, boxShadow: '0 2px 16px rgba(0,0,0,0.08)' }}>
       <h2 style={{ textAlign: 'center', color: '#1976d2', marginBottom: 24, letterSpacing: 2, fontWeight: 700, fontSize: 28 }}>
         <span style={{ verticalAlign: 'middle', marginRight: 8 }}>📍</span>スタンプラリー地図アプリ
       </h2>
+
+      {/* 歩数計表示 */}
+      <div style={{ 
+        background: '#e3f2fd', 
+        borderRadius: '12px', 
+        padding: '16px', 
+        marginBottom: '16px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <div>
+          <div style={{ fontSize: '14px', color: '#1976d2' }}>歩数</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1976d2' }}>
+            {stepCount} 歩
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: '14px', color: '#1976d2' }}>移動距離</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1976d2' }}>
+            {Math.round(totalDistance)} m
+          </div>
+        </div>
+        <button
+          onClick={toggleStepCounter}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '8px',
+            border: 'none',
+            background: isCounting ? '#f44336' : '#4CAF50',
+            color: 'white',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }}
+        >
+          {isCounting ? '停止' : '開始'}
+        </button>
+      </div>
+      {exerciseId && (
+        <div style={{ 
+          textAlign: 'center', 
+          color: '#4CAF50', 
+          marginBottom: '16px',
+          fontSize: '14px'
+        }}>
+          運動記録を保存しました！
+        </div>
+      )}
 
       {/* 検索入力フィールド */}
       <div style={{ marginBottom: '16px' }}>

@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, doc, setDoc, getDocs, getDoc, query, orderBy, limit, serverTimestamp } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
+// Firebaseの設定
 const firebaseConfig = {
   // Firebaseコンソールから取得した設定入力した
   apiKey: "AIzaSyDqvtowJu3By1kOj9gdyjWlXdNE8FIXsqU",
@@ -16,6 +17,8 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+// Firestoreの初期化
+export const db = getFirestore(app);
 
 // Add this line to define googleProvider
 const googleProvider = new GoogleAuthProvider();
