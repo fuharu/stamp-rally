@@ -3,11 +3,12 @@ import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { useJsApiLoader } from '@react-google-maps/api';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, getRanking, updateUserData, updateRanking } from './firebase'; 
+import { stampPointsCollection } from './firebase';
+import { getFirestore, collection, getDocs, doc, setDoc} from "firebase/firestore";
 import StampRallyPage from './pages/StampRallyPage';
 import ActivityPage from './pages/ActivityPage';
 import LoginPage from './pages/LoginPage';
 import RankingPage from './pages/RankingPage';
-import { STAMP_POINTS } from './App'; // STAMP_POINTSをインポート
 
 const center = { lat: 35.6895, lng: 139.6917 };
 
@@ -34,12 +35,30 @@ function AppRouter() {
   const [ranking, setRanking] = useState([]);
   const [goalId, setGoalId] = useState(null);
   const [currentUserProgress, setCurrentUserProgress] = useState(null);
+  const [firestoreStampPoints, setFirestoreStampPoints] = useState([]); // Firestoreのスタンプポイントを保持するstate
 
   const navigate = useNavigate();
 
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
   });
+
+useEffect(() => {
+    const fetchStampPoints = async () => {
+      const snapshot = await getDocs(stampPointsCollection);
+      const points = snapshot.docs.map(doc => {
+        const data = doc.data();
+          return ({
+            id: doc.id,
+            ...data,
+            position: { lat: data?.lat, lng: data?.lng }
+          });
+        });
+        setFirestoreStampPoints(points);
+    };
+
+    fetchStampPoints();
+  }, []);
 
   const handleMarkerClick = (id) => {
     setSelected(String(id));
@@ -427,7 +446,7 @@ function AppRouter() {
                 isLoaded={isLoaded}
                 center={center}
                 currentPos={currentPos}
-                touristSpots={STAMP_POINTS}
+                touristSpots={firestoreStampPoints}
                 gotStamps={gotStamps}
                 handleMarkerClick={handleMarkerClick}
                 selected={selected}
@@ -444,7 +463,7 @@ function AppRouter() {
           </Routes>
 
           {selected && (() => {
-            const spot = STAMP_POINTS.find(p => String(p.id) === String(selected));
+            const spot = firestoreStampPoints.find(p => String(p.id) === String(selected));
             if (!spot) return null;
             return (
               <div
@@ -487,7 +506,7 @@ function AppRouter() {
 }
 
 export default AppRouter;
-export function AppRoutes({ isLoaded, center, currentPos, STAMP_POINTS, gotStamps, handleMarkerClick, selected, handleGetStamp, geoError, ranking, user }) {
+export function AppRoutes({ isLoaded, center, currentPos, firestoreStampPoints, gotStamps, handleMarkerClick, selected, handleGetStamp, geoError, ranking, user }) {
   return (
     <Routes>
       <Route path="/stamp" element={
@@ -495,7 +514,7 @@ export function AppRoutes({ isLoaded, center, currentPos, STAMP_POINTS, gotStamp
           isLoaded={isLoaded}
           center={center}
           currentPos={currentPos}
-          touristSpots={STAMP_POINTS}
+          touristSpots={firestoreStampPoints}
           gotStamps={gotStamps}
           handleMarkerClick={handleMarkerClick}
           selected={selected}
