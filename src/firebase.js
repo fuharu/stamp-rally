@@ -80,4 +80,4 @@ export const updateUserData = async (userId, data) => {
   }
 };
 
-export { auth, googleProvider };
+export { auth, db, googleProvider };
