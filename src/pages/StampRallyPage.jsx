@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GoogleMap, Marker, Polyline, DirectionsRenderer } from '@react-google-maps/api';
-import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase'; // Firebaseの設定ファイルをインポート
+import { collection, getDocs, addDoc, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore';
+import { db, auth } from '../firebase'; // Firebaseの設定ファイルをインポート
 
 export default function StampRallyPage({
   isLoaded,
@@ -31,6 +31,11 @@ export default function StampRallyPage({
   const [lastPosition, setLastPosition] = useState(null);
   const [totalDistance, setTotalDistance] = useState(0);
   const [exerciseId, setExerciseId] = useState(null);
+
+  const [showStampAnimationPopup, setShowStampAnimationPopup] = useState(false); // スタンプアニメーションポップアップ表示用
+  const [currentStampAnimationImage, setCurrentStampAnimationImage] = useState(''); // 表示するスタンプ画像パス
+  const [isStamped, setIsStamped] = useState(false); // スタンプアニメーションの状態を制御
+  const stampImageRef = useRef(null); // スタンプ画像要素への参照
 
   // 2点間の距離を計算する関数（メートル単位）
   const getDistance = (pos1, pos2) => {
@@ -280,6 +285,78 @@ export default function StampRallyPage({
     };
   }, [isCounting, currentPos, lastPosition]);
 
+  // --- ここからスタンプ取得処理の変更 ---
+  const handleStampAcquire = async (stampPointId) => {
+    console.log("handleStampAcquire called with ID:", stampPointId); // 追加
+
+    try {
+        const user = auth.currentUser;
+        if (!user) {
+            alert('ログインしてください。');
+            return;
+        }
+        console.log("User logged in:", user.uid); // 追加
+
+        // Firestoreから観光地情報を取得し、imageフィールドを取得
+        const stampRef = doc(db, "stampPoints", stampPointId);
+        console.log("Firestore document reference:", stampRef.path); // 追加
+
+        const stampSnap = await getDoc(stampRef);
+        console.log("Firestore document snapshot exists:", stampSnap.exists()); // 追加
+
+        if (stampSnap.exists()) {
+            const stampData = stampSnap.data();
+            console.log("Stamp data fetched:", stampData); // 追加
+            const imageFileName = stampData.image; // Firestoreからimageフィールドを取得
+            console.log("Image file name from Firestore:", imageFileName); // 追加
+
+            if (!imageFileName) { // imageフィールドが存在しないか空の場合のチェック
+                alert('スタンプ画像情報が見つかりませんでした。Firestoreのimageフィールドを確認してください。');
+                handleMarkerClick(null); // マーカーのポップアップを閉じる
+                return;
+            }
+
+            // スタンプアニメーションポップアップを表示し、スタンプ画像をセット
+            setCurrentStampAnimationImage(imageFileName);
+            setShowStampAnimationPopup(true);
+            setIsStamped(false); // アニメーションをリセット
+
+            // スタンプを台紙に押す動作の表現
+            setTimeout(() => {
+                setIsStamped(true);
+            }, 100);
+
+            // 既存のスタンプ取得ロジックをここに続ける
+            await setDoc(doc(db, "users", user.uid, "stamps", stampPointId), {
+                acquiredAt: serverTimestamp(),
+            });
+            console.log('スタンプを獲得しました:', stampPointId);
+
+        } else {
+            console.warn("No such document in stampPoints for ID:", stampPointId); // 警告に変更
+            alert('スタンプ情報が見つかりませんでした。Firestoreのコレクション名とドキュメントIDを確認してください。');
+        }
+
+        handleMarkerClick(null); // マーカーのポップアップを閉じる
+
+    } catch (error) {
+        console.error("スタンプ取得エラー:", error);
+        alert("スタンプ取得中にエラーが発生しました。エラーの詳細はコンソールを確認してください。");
+    }
+
+    handleGetStamp(selected); // 既存のスタンプ取得処理を呼び出す
+};
+
+  // スタンプアニメーションポップアップを閉じる処理
+  const handleCloseStampAnimationPopup = () => {
+    setShowStampAnimationPopup(false);
+    setIsStamped(false); // アニメーション状態をリセット
+    setCurrentStampAnimationImage(''); // 画像パスをクリア
+  };
+  // --- ここまでスタンプ取得処理の変更 ---
+
+
+
   return (
     <div style={{ maxWidth: 600, margin: '0 auto', padding: 16, background: '#fff', borderRadius: 16, boxShadow: '0 2px 16px rgba(0,0,0,0.08)' }}>
       <h2 style={{ textAlign: 'center', color: '#1976d2', marginBottom: 24, letterSpacing: 2, fontWeight: 700, fontSize: 28 }}>
@@ -528,7 +605,7 @@ export default function StampRallyPage({
             )}
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
               <button
-                onClick={() => handleGetStamp(selected)}
+                onClick={() => handleStampAcquire(selected)}
                 disabled={!isNearby}
                 style={{
                   padding: '8px 16px',
@@ -544,7 +621,7 @@ export default function StampRallyPage({
                 スタンプを取得
               </button>
               <button
-                onClick={() => handleGetStamp(selected)}
+                onClick={() => handleStampAcquire(selected)}
                 style={{
                   padding: '8px 16px',
                   borderRadius: '4px',
@@ -626,6 +703,24 @@ export default function StampRallyPage({
           </div>
         );
       })()}
+
+      {/* --- ここからスタンプアニメーションポップアップのJSXを追加 --- */}
+      {showStampAnimationPopup && (
+        <div className="stamp-popup-overlay">
+          <div className="stamp-popup-content">
+            {currentStampAnimationImage && (
+              <img
+                ref={stampImageRef} // refを設定
+                src={`/images/${currentStampAnimationImage}`} // imagesディレクトリからの画像を動的に表示
+                alt="スタンプ"
+                className={`stamp-image-animated ${isStamped ? 'stamped' : ''}`} // isStampedに基づいてクラスを適用
+              />
+            )}
+            <button onClick={handleCloseStampAnimationPopup}>閉じる</button>
+          </div>
+        </div>
+      )}
+      {/* --- ここまでスタンプアニメーションポップアップのJSXを追加 --- */}
 
       {/* ポイント・特典表示 */}
       <div style={{ background: '#e8f5e9', borderRadius: 12, padding: 16, margin: '16px 0', boxShadow: '0 1px 4px rgba(56,142,60,0.08)' }}>

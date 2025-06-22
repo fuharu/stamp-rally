@@ -11,7 +11,7 @@ const containerStyle = {
   marginBottom: '1rem',
 };
 
-const center = { lat: 35.6895, lng: 139.6917 }; // 東京中心
+const center = { lat: 36.3714, lng: 140.4762 }; // 水戸中心
 
 export default function App() {
   const { isLoaded } = useJsApiLoader({

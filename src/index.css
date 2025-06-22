@@ -12,3 +12,48 @@ body {
   justify-content: flex-start;
   align-items: center;
 }
+
+.stamp-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7); /* 半透明の背景 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000; /* 他の要素より手前に表示 */
+}
+
+.stamp-popup-content {
+    background-color: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    position: relative; /* スタンプ画像の重ね合わせのため */
+    width: 300px; /* 台紙のサイズ */
+    height: 300px; /* 台紙のサイズ */
+    display: flex; /* 中央にスタンプを配置するため */
+    justify-content: center;
+    align-items: center;
+    flex-direction: column; /* ボタンを下に配置するため */
+}
+
+.stamp-image-animated {
+    max-width: 80%; /* 台紙の中に収まるように調整 */
+    max-height: 80%;
+    display: block;
+    margin-bottom: 20px;
+    /* 初期状態は透明にしておく */
+    opacity: 0;
+    transform: scale(0.5);
+    transition: opacity 0.5s ease-out, transform 0.5s ease-out; /* アニメーションの速度と種類 */
+}
+
+/* スタンプが押された後のアニメーション */
+.stamp-image-animated.stamped {
+    opacity: 1;
+    transform: scale(1);
+}
