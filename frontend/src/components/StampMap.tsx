@@ -20,11 +20,10 @@ interface TouristSpot {
   longitude: number;
   stamp_image_url: string;
 }
-
-const StampMap: React.FC = () => {
-  const [spots, setSpots] = useState<TouristSpot[]>([]);
-  const [currentPosition, setCurrentPosition] = useState<[number, number] | null>(null);
-  const [selectedSpot, setSelectedSpot] = useState<TouristSpot | null>(null);
+const StampMap = () => {
+  const [spots, setSpots] = useState([]);
+  const [currentPosition, setCurrentPosition] = useState(null);
+  const [selectedSpot, setSelectedSpot] = useState(null);
   const [isWithinRange, setIsWithinRange] = useState(false);
 
   useEffect(() => {

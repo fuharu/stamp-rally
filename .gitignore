@@ -23,3 +23,7 @@ yarn-error.log*
 
 # Firebase
 .firebase/
+
+/add_official_stamps.js
+/YOUR_SERVICE_ACCOUNT_KEY.json
+/stamp-rally-67b6f-firebase-adminsdk-fbsvc-016d54c5df.json
